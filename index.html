@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YouTube 频道数据分析仪表板</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+:root{--bg-dark:#ffffff;--bg-card:#f5f5f5;--bg-input:#ffffff;--text-primary:#1a1a1a;--text-secondary:#666666;--accent:#ff4444;--accent-hover:#cc0000;--border:#e0e0e0;--green:#1a73e8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg-dark);color:var(--text-primary);min-height:100vh}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg-dark)}
+::-webkit-scrollbar-thumb{background:#ccc;border-radius:3px}
+.app-header{background:var(--bg-card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.app-header h1{font-size:20px;font-weight:600;display:flex;align-items:center;gap:10px}.app-header h1 .logo{color:var(--accent)}.app-header .status{font-size:13px;color:var(--text-secondary)}
+.nav-tabs .nav-link{color:var(--text-secondary);border:none;padding:8px 16px;font-size:14px;font-weight:500}
+.nav-tabs .nav-link.active{color:#1a1a1a;background:transparent;border-bottom:2px solid var(--accent)}
+.nav-tabs .nav-link:hover{color:#1a1a1a;border-color:transparent}
+.tab-content{padding:20px}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;margin-bottom:16px}
+.card-header{background:transparent;border-bottom:1px solid var(--border);padding:12px 16px;font-weight:600;font-size:15px}
+.card-body{padding:16px}
+.stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px;height:100%}
+.stat-card .label{font-size:12px;color:var(--text-secondary);margin-bottom:4px}.stat-card .value{font-size:24px;font-weight:700}
+.channel-card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:14px}
+.channel-card .avatar{width:48px;height:48px;border-radius:50%;background:#333;flex-shrink:0;overflow:hidden}
+.channel-card .avatar img{width:100%;height:100%;object-fit:cover}
+.channel-card .info{flex:1;min-width:0}
+.channel-card .info .name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.channel-card .info .channel-id{font-size:11px;color:var(--text-secondary)}
+.channel-card .actions{display:flex;gap:8px;align-items:center}
+.form-control,.form-select{background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);border-radius:6px;padding:8px 12px;font-size:14px}
+.form-control:focus,.form-select:focus{background:var(--bg-input);border-color:var(--accent);color:var(--text-primary);box-shadow:0 0 0 2px rgba(255,68,68,0.15)}
+.form-label{font-size:13px;color:var(--text-secondary);margin-bottom:4px}
+.btn-accent{background:var(--accent);color:white;border:none;border-radius:6px;padding:8px 16px;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s}
+.btn-accent:hover{background:var(--accent-hover)}
+.btn-outline{background:transparent;color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:8px 16px;font-size:14px;cursor:pointer;transition:all .15s}
+.btn-outline:hover{background:rgba(0,0,0,0.05);border-color:#555}
+.btn-danger-sm{background:transparent;color:#f44336;border:1px solid #f44336;border-radius:4px;padding:2px 8px;font-size:12px;cursor:pointer}
+.btn-danger-sm:hover{background:rgba(244,67,54,0.15)}
+.chart-container{position:relative;height:300px;width:100%}
+.table{--bs-table-bg:transparent;--bs-table-color:var(--text-primary);--bs-table-border-color:var(--border);font-size:13px}
+.table th{color:var(--text-secondary);font-weight:500;border-bottom:1px solid var(--border);padding:10px 12px;cursor:pointer;user-select:none;white-space:nowrap}
+.table th:hover{color:#1a1a1a}.table td{padding:10px 12px;border-bottom:1px solid rgba(0,0,0,0.04);vertical-align:middle}
+.table tr:hover td{background:rgba(0,0,0,0.02)}
+.loading-spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+.empty-state h4{color:var(--text-primary);margin-bottom:8px}
+.toast-container{position:fixed;bottom:20px;right:20px;z-index:9999}
+.toast-msg{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-top:8px;font-size:13px;box-shadow:0 4px 20px rgba(0,0,0,0.1);animation:slideIn .2s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.toast-msg.error{border-color:#f44336}.toast-msg.success{border-color:#4caf50}
+.help-text{font-size:12px;color:var(--text-secondary);margin-top:4px}
+.time-range-selector{display:flex;gap:4px;margin-bottom:16px}
+.time-range-selector .btn-range{padding:4px 12px;font-size:12px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer}
+.time-range-selector .btn-range.active{background:var(--accent);color:white;border-color:var(--accent)}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.metric-item{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.metric-item .metric-value{font-size:20px;font-weight:700}
+.metric-item .metric-label{font-size:11px;color:var(--text-secondary);margin-top:2px}
+@media(max-width:768px){.tab-content{padding:12px}.app-header{padding:10px 12px}.app-header h1{font-size:16px}.channel-card{flex-wrap:wrap}.metric-grid{grid-template-columns:repeat(2,1fr)}}
+.progress-bar-wrapper{background:var(--bg-input);border-radius:6px;height:4px;margin:8px 0;overflow:hidden}
+/* --- Daily Update Tab --- */
+.freq-card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px;height:100%}
+.freq-card .freq-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.freq-card .freq-header img{width:28px;height:28px;border-radius:50%}
+.freq-card .freq-header .freq-name{font-weight:600;font-size:14px}
+.freq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+.freq-item{text-align:center;padding:8px;background:var(--bg-dark);border-radius:6px;border:1px solid var(--border)}
+.freq-item .freq-val{font-size:18px;font-weight:700;color:var(--accent)}
+.freq-item .freq-lbl{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.dow-bar{display:flex;gap:4px;margin-top:8px}
+.dow-item{flex:1;text-align:center;font-size:11px;color:var(--text-secondary)}
+.dow-item .dow-fill{height:4px;border-radius:2px;background:var(--border);margin:4px auto 2px;width:100%}
+.dow-item .dow-fill.active{background:var(--accent)}
+.daily-table{font-size:12px;width:100%}
+.daily-table th{text-align:center;padding:6px 4px;font-size:11px;color:var(--text-secondary);border-bottom:1px solid var(--border);white-space:nowrap}
+.daily-table td{text-align:center;padding:6px 4px;border-bottom:1px solid rgba(0,0,0,0.04)}
+.daily-table .day-active{background:rgba(255,68,68,0.08);border-radius:4px;font-weight:600}
+.daily-table .day-today{outline:2px solid var(--accent);outline-offset:-1px;border-radius:4px}
+.daily-summary{font-size:12px;color:var(--text-secondary);padding:8px 12px;background:var(--bg-dark);border-radius:6px}
+/* --- End Daily Update Tab --- */
+.progress-bar-fill{background:var(--accent);height:100%;border-radius:6px;transition:width .3s ease;width:0}
+</style>
+</head>
+<body>
+<div class="toast-container" id="toastContainer"></div>
+<div class="app-header">
+  <h1><span class="logo">&#9654;</span> <span>Channel Analytics</span> <span style="font-size:12px;color:var(--text-secondary);font-weight:400;margin-left:4px;">YouTube 频道数据批量分析</span></h1>
+  <div class="status"><span id="channelCount">0</span> 个频道</div>
+</div>
+<ul class="nav nav-tabs px-3 pt-2" id="mainTabs" role="tablist" style="border-bottom-color:var(--border);">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabOverview" type="button" role="tab">概览</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabWeekly" type="button" role="tab">周数据</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabMonthly" type="button" role="tab">月数据</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabVideos" type="button" role="tab">视频表现</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDaily" type="button" role="tab">每日更新</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabSettings" type="button" role="tab">设置</button></li>
+</ul>
+<div class="tab-content">
+<div class="tab-pane fade show active" id="tabOverview" role="tabpanel">
+<div id="oauthBanner" style="display:none;background:#fff3e0;border:1px solid #ff9800;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;">
+  <strong>🔑 需要 Google 账号认证</strong> 才能查看深度指标（CTR、均播时长、展示次数、营收）
+  <button class="btn-accent btn-sm ms-2" onclick="startOA()" style="background:#ff9800;">立即登录</button>
+  <span class="help-text ms-2">登录一次，Token 有效期约 1 小时</span>
+</div>
+<div id="overviewContent"><div class="empty-state"><h4>还没有添加频道</h4><p>前往「设置」选项卡，添加你的 YouTube 频道和 API Key 即可开始批量分析。</p><button class="btn-accent mt-3" onclick="switchTab('tabSettings')">前往设置</button></div></div></div>
+<div class="tab-pane fade" id="tabWeekly" role="tabpanel">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">周数据报表</h5>
+    <div><select class="form-select form-select-sm d-inline-block w-auto" id="weeklyChannelFilter" style="width:auto;display:inline-block;font-size:13px;"><option value="all">全部频道</option></select><button class="btn-accent btn-sm ms-2" onclick="fetchWeeklyData()">刷新所有频道</button></div>
+  </div>
+  <div class="time-range-selector mb-3" id="weeklyRangeSelector">
+    <button class="btn-range active" data-weeks="4">近 4 周</button>
+    <button class="btn-range" data-weeks="12">近 12 周</button>
+    <button class="btn-range" data-weeks="24">近 24 周</button>
+  </div>
+  <div id="weeklyContent"><div class="empty-state"><h4>加载数据中...</h4><div class="loading-spinner" style="margin:12px auto"></div></div></div>
+</div>
+<div class="tab-pane fade" id="tabMonthly" role="tabpanel">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">月数据报表</h5>
+    <div><select class="form-select form-select-sm d-inline-block w-auto" id="monthlyChannelFilter" style="width:auto;display:inline-block;font-size:13px;"><option value="all">全部频道</option></select><button class="btn-accent btn-sm ms-2" onclick="fetchMonthlyData()">刷新所有频道</button></div>
+  </div>
+  <div class="time-range-selector mb-3" id="monthlyRangeSelector">
+    <button class="btn-range active" data-months="3">近 3 月</button>
+    <button class="btn-range" data-months="6">近 6 月</button>
+    <button class="btn-range" data-months="12">近 12 月</button>
+  </div>
+  <div id="monthlyContent"><div class="empty-state"><h4>加载数据中...</h4><div class="loading-spinner" style="margin:12px auto"></div></div></div>
+</div>
+<div class="tab-pane fade" id="tabVideos" role="tabpanel">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">视频表现分析</h5>
+    <div><select class="form-select form-select-sm d-inline-block w-auto" id="videoChannelFilter"><option value="all">全部频道</option></select><button class="btn-accent btn-sm ms-2" onclick="fetchAllVideos()">刷新视频数据</button><button class="btn-outline btn-sm ms-2" onclick="loadAllVideos()" id="loadAllVideosBtn">加载全部视频</button><span id="loadAllProgress" class="help-text ms-2" style="display:none;"></span></div>
+  </div>
+  <div id="videosContent"><div class="empty-state"><h4>加载数据中...</h4><div class="loading-spinner" style="margin:12px auto"></div></div></div>
+</div>
+<div class="tab-pane fade" id="tabDaily" role="tabpanel">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">每日更新分析</h5>
+    <button class="btn-accent btn-sm" onclick="fD()">刷新数据</button>
+  </div>
+  <div class="time-range-selector mb-3" id="dailyRangeSelector">
+    <button class="btn-range active" data-days="7">近 7 天</button>
+    <button class="btn-range" data-days="14">近 14 天</button>
+    <button class="btn-range" data-days="30">近 30 天</button>
+    <button class="btn-range" data-days="90">近 90 天</button>
+  </div>
+  <div id="dailyContent"><div class="empty-state"><h4>加载数据中...</h4><div class="loading-spinner" style="margin:12px auto"></div></div></div>
+</div>
+<div class="tab-pane fade" id="tabSettings" role="tabpanel">
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header">API 配置</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">YouTube Data API Key <span style="color:var(--accent)">*必须</span></label>
+              <input type="text" class="form-control" id="apiKeyInput" placeholder="输入你的 API Key">
+              <div class="help-text">从 <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent)">Google Cloud Console</a> 免费获取</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">OAuth Client ID（可选，深度指标）</label>
+              <input type="text" class="form-control" id="oauthClientIdInput" placeholder="用于 Analytics API">
+              <div class="help-text">启用后可获取 CTR、均播时长、展示次数</div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <button class="btn-accent btn-sm" onclick="saveApiConfig()">保存配置</button>
+            <button class="btn-outline btn-sm ms-2" onclick="testApiKey()">测试 API Key</button>
+            <button class="btn-outline btn-sm ms-2" onclick="batchFetchAll()">批量抓取所有频道</button>
+          </div>
+          <div id="apiTestResult" class="mt-2 help-text"></div>
+          <div id="batchProgress" class="mt-2" style="display:none;">
+            <div class="help-text" id="batchProgressText">准备中...</div>
+            <div class="progress-bar-wrapper"><div class="progress-bar-fill" id="batchProgressBar"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">OAuth 2.0 深度指标 <span style="font-size:12px;color:var(--text-secondary);font-weight:400;">CTR · 均播时长 · 展示次数 · 观看时长 · 订阅变化</span></div>
+        <div class="card-body">
+          <p class="help-text" style="color:var(--accent);font-weight:500;">配置后可获取 YouTube Studio 级别的深度分析数据</p>
+          <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:12px;margin:12px 0;font-size:13px;line-height:1.7;">
+            <strong>⚠️ 登录弹窗闪退怎么办？</strong><br>
+            这是 Google 同意屏幕还在「测试模式」导致的。请按以下步骤操作：
+            <ol style="margin:6px 0 0 16px;padding:0;">
+              <li>打开 <a href="https://console.cloud.google.com/apis/credentials/consent?project=sacred-drive-499506-t8" target="_blank" style="color:var(--accent)">Google Cloud Console → OAuth 同意屏幕</a></li>
+              <li>在「测试用户」下方点击「<strong>ADD USERS</strong>」</li>
+              <li>添加你的邮箱：<strong>hermanren888@gmail.com</strong></li>
+              <li>保存后再点击「<strong>立即登录</strong>」</li>
+            </ol>
+            <p style="margin:6px 0 0 0;font-size:12px;color:var(--text-secondary);">
+              或者在同意屏幕顶部点击「<strong>发布应用</strong>」→ 切换到生产模式（这样任何 Google 账号都能用）
+            </p>
+          </div>
+          <ul style="font-size:12px;color:var(--text-secondary);padding-left:16px;line-height:1.8;">
+            <li>点击率 (CTR) — 展示次数中产生观看的比例</li>
+            <li>平均观看时长 — 观众平均每次观看的时间</li>
+            <li>展示次数 — 视频缩略图在 YouTube 上展示的次数</li>
+            <li>观看时长(分钟) — 总观看时长</li>
+            <li>订阅者变化 — 新增/流失订阅数</li>
+          </ul>
+          <hr style="border-color:var(--border);margin:8px 0;">
+          <p class="help-text"><strong>配置步骤：</strong></p>
+          <ol style="font-size:12px;color:var(--text-secondary);padding-left:16px;line-height:1.8;">
+            <li>前往 <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent)">Google Cloud Console</a></li>
+            <li>启用「YouTube Analytics API」</li>
+            <li>创建 OAuth 2.0 客户端 ID（Web 应用类型）</li>
+            <li>在「已获授权的 JavaScript 来源」中添加 <code style="background:var(--bg-input);padding:1px 4px;border-radius:3px;">http://localhost:8765</code></li>
+            <li>将生成的 Client ID 填入上方「OAuth Client ID」输入框并保存</li>
+          </ol>
+          <hr style="border-color:var(--border);margin:8px 0;">
+          <div id="oauthButtonContainer"></div><div id="proxyStatus" class="help-text" style="margin-top:4px;color:var(--text-secondary)">代理服务器状态检查中...</div>
+          <div id="oauthStatus" class="mt-2 help-text"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">频道管理 <span style="font-size:12px;color:var(--text-secondary);font-weight:400;">支持批量添加多个频道</span></div>
+        <div class="card-body">
+          <div class="row g-2 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">频道名称（别名）</label>
+              <input type="text" class="form-control" id="channelNameInput" placeholder="例如：美食频道">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">运营人</label>
+              <input type="text" class="form-control" id="channelOperatorInput" placeholder="负责人姓名">
+            </div>
+            <div class="col-md-5">
+              <label class="form-label">频道 ID / 链接 / @用户名</label>
+              <input type="text" class="form-control" id="channelIdInput" placeholder="UCxxx... 或 https://youtube.com/@xxx">
+            </div>
+          </div>
+          <button class="btn-accent btn-sm" onclick="addChannel()">添加频道</button>
+          <button class="btn-outline btn-sm ms-2" onclick="batchFetchAll()">批量抓取全部</button>
+          <div id="channelList" class="mt-3"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">数据导出</div>
+        <div class="card-body">
+          <button class="btn-outline btn-sm" onclick="exportCSV('weekly')">导出周数据 CSV</button>
+          <button class="btn-outline btn-sm ms-2" onclick="exportCSV('monthly')">导出月数据 CSV</button>
+          <button class="btn-outline btn-sm ms-2" onclick="exportCSV('videos')">导出视频数据 CSV</button>
+          <button class="btn-outline btn-sm ms-2" onclick="clearAllData()" style="border-color:#f44336;color:#f44336;">清除所有数据</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header">快速开始</div>
+        <div class="card-body" style="font-size:13px;color:var(--text-secondary);line-height:1.6;">
+          <p><strong>1. 免费获取 API Key</strong></p>
+          <p>去 Google Cloud Console 创建项目 → 启用 YouTube Data API v3 → 创建 API 密钥。完全免费，每日 10,000 配额。</p>
+          <hr style="border-color:var(--border)">
+          <p><strong>2. 添加你的频道</strong></p>
+          <p>支持频道链接、UCxxx ID、@用户名，自动解析频道信息</p>
+          <hr style="border-color:var(--border)">
+          <p><strong>3. 一键批量抓取</strong></p>
+          <p>点「批量抓取所有频道」，自动拉取所有频道的视频数据，聚合为周/月报表</p>
+          <hr style="border-color:var(--border)">
+          <p><strong>4. 深度指标（可选）</strong></p>
+          <p>配置 OAuth Client ID 后可获取 CTR、均播时长、展示次数等 Studio 级别数据。同样免费。</p>
+          <hr style="border-color:var(--border)">
+          <p>所有数据保存在浏览器本地，不上传任何服务器。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+let state={apiKey:"AIzaSyColX13OIV9DKS0r1GqQgay_kBSVey9Nnw",oauthClientId:"701921239457-ei4lt168afq00kpq5f1jjo43e3gauoeq.apps.googleusercontent.com",channels:[],videosCache:{},weeklyData:{},monthlyData:{},analyticsData:{},tokenClient:null,accessToken:"",charts:{}};
+function $(i){return document.getElementById(i)}
+function toast(msg,tp){let c=$("toastContainer"),el=document.createElement("div");el.className="toast-msg "+(tp==="error"?"error":tp==="success"?"success":"");el.textContent=msg;c.appendChild(el);setTimeout(()=>{el.style.opacity="0";setTimeout(()=>el.remove(),200)},3000)}
+function fm(n){if(n===undefined||n===null)return "-";return Number(n).toLocaleString()}
+function fs(n){if(!n&&n!==0)return "-";n=Number(n);if(n>=1e8)return (n/1e8).toFixed(1)+"亿";if(n>=1e4)return (n/1e4).toFixed(1)+"万";return fm(n)}
+function fd(s){if(!s&&s!==0)return "-";return Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0")}
+function gM(d){let dt=new Date(d),dy=dt.getDay();dt.setDate(dt.getDate()-dy+(dy===0?-6:1));dt.setHours(0,0,0,0);return dt}
+function fDt(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function eC(s){s=String(s==null?"":s);return s.includes(",")||s.includes("\"")||s.includes("\n")?"\""+s.replace(/\"/g,"\"\"")+"\"":s}
+function swT(i){let b=document.querySelector("[data-bs-target=\"#"+i+"\"]");if(b)b.click()}
+function svS(){try{localStorage.setItem("ytD",JSON.stringify(state))}catch(e){}}
+function ldS(){try{let r=localStorage.getItem("ytD");if(r){let s=JSON.parse(r);if(s.channels&&s.channels.length>0&&s.channels[0].id==="UCMl0vKnuL6nSPQmcSlMD5Pg"){localStorage.removeItem("ytD");return}Object.assign(state,s);if(!s.oauthClientId)state.oauthClientId="701921239457-ei4lt168afq00kpq5f1jjo43e3gauoeq.apps.googleusercontent.com"}}catch(e){}}
+function addChannel(){addCh()}
+function batchFetchAll(){bFA()}
+function fetchWeeklyData(){fW()}
+function fetchMonthlyData(){fM()}
+function exportCSV(t){eCSV(t)}
+function saveApiConfig(){svCfg()}
+function fetchAllVideos(){fAV()}
+function clearAllData(){cAD()}
+function switchTab(i){swT(i)}function testApiKey(){tstKey()}function svCfg(){state.apiKey=$("apiKeyInput").value.trim();state.oauthClientId=$("oauthClientIdInput").value.trim();svS();if(state.oauthClientId){if(typeof google!=="undefined"&&google.accounts)initOA(state.oauthClientId);else setTimeout(function(){if(typeof google!=="undefined"&&google.accounts)initOA(state.oauthClientId);else toast("Google 登录库尚未加载，请刷新页面重试","error")},3000)}toast("配置已保存，建议点击「批量抓取所有频道」拉取数据","success")}
+async function tstKey(){let k=$("apiKeyInput").value.trim();if(!k){$("apiTestResult").textContent="请先输入 API Key";return}$("apiTestResult").textContent="测试中...";try{let r=await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&id=UC_x5XG1OV2P6uZZ5FSM9Ttw&key="+k),d=await r.json();if(d.error){$("apiTestResult").textContent="失败: "+(d.error.message||"未知");toast("API Key 无效","error")}else{$("apiTestResult").textContent="API Key 有效!";toast("API Key 验证通过","success")}}catch(e){$("apiTestResult").textContent="网络错误: "+e.message}}
+function initOA(cid){
+  if(typeof google==="undefined"||!google.accounts)return;
+  state.tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:cid,
+    scope:"https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/youtube.readonly",
+    callback:function(r){
+      if(r.access_token){state.accessToken=r.access_token;var expires=Date.now()+3500000;state.tokenExpires=expires;document.getElementById("oauthStatus").innerHTML='<span style="color:#4caf50">已通过 OAuth 认证</span><span style="font-size:11px;color:var(--text-secondary);margin-left:8px;">Token 有效至 '+new Date(expires).toLocaleTimeString("zh-CN")+'</span>';svS();toast("OAuth 认证成功","success")}
+      else if(r.error){document.getElementById("oauthStatus").textContent="认证失败: "+r.error;if(r.error==="access_denied")document.getElementById("oauthStatus").innerHTML='<span style="color:#f44336">认证被拒绝，请确保：<br>1. 你的 Google 账号已添加为测试用户<br>2. 点击「登录 Google 账号」时允许所有权限</span>'}
+    }
+  });
+  rOB()
+}
+function rOB(){
+  var c=document.getElementById("oauthButtonContainer");
+  if(state.accessToken)c.innerHTML='<span style="color:#4caf50;font-size:13px;">已认证 ✓</span><button class="btn-outline btn-sm ms-2" onclick="logoutOA()">登出</button>';
+  else if(state.oauthClientId)c.innerHTML='<button class="btn-accent btn-sm" onclick="startOA()">登录 Google 账号</button>';
+  else c.innerHTML='<span class="help-text">配置 OAuth Client ID 后启用</span>'
+}
+function logoutOA(){state.accessToken="";rOB();svS()}function rOBv(){if(!state.accessToken&&state.oauthClientId){var b=document.getElementById("oauthBanner");if(b)b.style.display="block"}else{var b=document.getElementById("oauthBanner");if(b)b.style.display="none"}}
+function rOBv(){
+  if(!state.accessToken&&state.oauthClientId){
+    var b=document.getElementById("oauthBanner");
+    if(b)b.style.display="block"
+  }
+}
+function startOA(){if(state.tokenClient)state.tokenClient.requestAccessToken();else if(state.oauthClientId){initOA(state.oauthClientId);if(state.tokenClient)state.tokenClient.requestAccessToken()}}
+function pCh(inp){inp=inp.trim();if(/^UC[\w-]{22,}$/.test(inp))return inp;var m=inp.match(/youtube\.com\/channel\/(UC[\w-]+)/);if(m)return m[1];m=inp.match(/youtube\.com\/@([\w.-]+)/);if(m)return "@"+m[1];if(/^@[\w.-]+$/.test(inp))return inp;return inp}
+async function rH(handle){if(!state.apiKey)return null;try{var r=await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle="+handle.replace("@","")+"&key="+state.apiKey),d=await r.json();if(d.items&&d.items.length>0)return{channelId:d.items[0].id,thumbnail:d.items[0].snippet.thumbnails.default.url,name:d.items[0].snippet.title};r=await fetch("https://www.googleapis.com/youtube/v3/search?part=snippet&q="+handle.replace("@","")+"&type=channel&key="+state.apiKey);d=await r.json();if(d.items&&d.items.length>0)return{channelId:d.items[0].snippet.channelId,thumbnail:d.items[0].snippet.thumbnails.default.url,name:d.items[0].snippet.title}}catch(e){}return null}
+async function fCI(chId){if(!state.apiKey)return null;try{var r=await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id="+chId+"&key="+state.apiKey),d=await r.json();if(d.items&&d.items.length>0)return{id:d.items[0].id,name:d.items[0].snippet.title,thumbnail:d.items[0].snippet.thumbnails.default.url,stats:d.items[0].statistics}}catch(e){}return null}
+async function addCh(){var ni=document.getElementById("channelNameInput"),oi=document.getElementById("channelOperatorInput"),ii=document.getElementById("channelIdInput"),rid=ii.value.trim(),rn=ni.value.trim(),op=(oi?oi.value.trim():"");if(!rid){toast("请输入频道链接或 ID","error");return}var parsed=pCh(rid),chId=parsed,cName=rn,thumb="";if(parsed.startsWith("@")){toast("正在解析频道...");var res=await rH(parsed);if(!res){toast("无法解析频道，请直接用 UCxxx 格式","error");return}chId=res.channelId;if(!cName)cName=res.name;thumb=res.thumbnail}else if(/^UC/.test(parsed)){var info=await fCI(parsed);if(info){cName=cName||info.name;thumb=info.thumbnail}}if(state.channels.find(function(c){return c.channelId===chId})){toast("该频道已存在","error");return}state.channels.push({id:chId,name:cName||chId,channelId:chId,thumbnail:thumb||"",operator:op||""});ni.value="";ii.value="";svS();rCh();uH();toast("已添加: "+(cName||chId),"success");fOv()}
+function rmvCh(id){state.channels=state.channels.filter(function(c){return c.id!==id});delete state.videosCache[id];delete state.weeklyData[id];delete state.monthlyData[id];svS();rCh();uH();fOv()}
+function rCh(){var c=document.getElementById("channelList");if(state.channels.length===0){c.innerHTML='<div class="help-text">尚未添加频道。输入频道 ID/链接/@用户名后点击「添加频道」。</div>';return}c.innerHTML=state.channels.map(function(ch){return'<div class="channel-card"><div class="avatar">'+(ch.thumbnail?'<img src="'+ch.thumbnail+'">':'')+'</div><div class="info"><div class="name">'+ch.name+'</div><div class="channel-id">'+ch.channelId+'</div>'+(ch.operator?'<div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">运营人: '+ch.operator+'</div>':'')+'</div><div class="actions"><button class="btn-outline btn-sm" onclick="fSC(\''+ch.channelId+'\')">刷新</button><button class="btn-danger-sm" onclick="rmvCh(\''+ch.id+'\')">删除</button></div></div>'}).join("")}
+function uH(){document.getElementById("channelCount").textContent=state.channels.length}
+
+async function fCS(cid){if(!state.apiKey)return null;try{var r=await fetch("https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id="+cid+"&key="+state.apiKey),d=await r.json();return d.items&&d.items.length>0?d.items[0]:null}catch(e){return null}}
+async function fRV(chId,maxR){if(maxR===undefined)maxR=50;if(!state.apiKey)return[];try{var allV=[];var pageToken="";var fetchCount=0;var maxPages=Math.ceil(maxR/50);do{var url="https://www.googleapis.com/youtube/v3/search?order=date&part=snippet&channelId="+chId+"&maxResults=50&type=video&key="+state.apiKey+(pageToken?"&pageToken="+pageToken:"");var r=await fetch(url),d=await r.json();if(!d.items)break;var vIds=d.items.filter(function(i){return i.id.kind==="youtube#video"&&i.id.videoId}).map(function(i){return i.id.videoId}).filter(Boolean);if(vIds.length===0)break;for(var i=0;i<vIds.length;i+=50){var batch=vIds.slice(i,i+50);var vr=await fetch("https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id="+batch.join(",")+"&key="+state.apiKey);var vd=await vr.json();if(vd.items)allV=allV.concat(vd.items)}fetchCount++;pageToken=d.nextPageToken||""}while(pageToken&&fetchCount<maxPages);state.videosCache[chId]=allV;svS();return allV}catch(e){return[]}}
+async function fA(cid,start,end,dim){if(dim===undefined)dim="day";if(!state.accessToken)return null;try{var r=await fetch("/api/analytics?cid="+cid+"&start="+start+"&end="+end+"&dim="+dim+"&token="+encodeURIComponent(state.accessToken));if(!r.ok){if(r.status===401){toast("OAuth token 过期，请重新登录","error");state.accessToken="";rOB()}return null}return await r.json()}catch(e){return null}}
+async function fDb(cid){if(!state.accessToken)return null;
+  try{var r=await fetch("/api/analytics-batch?cid="+cid+"&days=30&token="+encodeURIComponent(state.accessToken));
+    if(!r.ok){if(r.status===401){toast("OAuth token 过期，请重新登录","error");state.accessToken="";rOB()}return null}
+    return await r.json()}catch(e){return null}}async function chkSvr(){try{let r=await fetch("/api/config");let d=await r.json();if(d.status==="ok"&&d.proxy){document.getElementById("proxyStatus").textContent="代理服务器: 已连接 (端口 "+d.port+")";return true}}catch(e){document.getElementById("proxyStatus").textContent="代理服务器: 未连接，深度数据不可用";return false}}
+async function bFA(){if(state.channels.length===0){toast("请先添加频道","error");return}if(!state.apiKey){toast("请先配置 API Key","error");return}var bar=document.getElementById("batchProgressBar"),txt=document.getElementById("batchProgressText"),prg=document.getElementById("batchProgress");prg.style.display="block";txt.textContent="准备批量抓取 "+state.channels.length+" 个频道...";bar.style.width="0%";for(var i=0;i<state.channels.length;i++){var ch=state.channels[i];var pct=Math.round((i/state.channels.length)*100);txt.textContent="["+(i+1)+"/"+state.channels.length+"] 正在抓取: "+ch.name+"...";bar.style.width=pct+"%";try{await fRV(ch.channelId,50)}catch(e){txt.textContent="["+(i+1)+"/"+state.channels.length+"] "+ch.name+" 出错: "+e.message}await new Promise(function(r){setTimeout(r,300)})}bar.style.width="100%";txt.textContent="全部抓取完成！正在刷新报表...";toast("批量抓取完成！共 "+state.channels.length+" 个频道","success");setTimeout(function(){prg.style.display="none"},2000);fOv();fW();fM();fAV()}
+async function fSC(chId){var ch=state.channels.find(function(c){return c.channelId===chId});if(!ch)return;toast("正在刷新 "+ch.name);await fRV(chId);svS();fOv()}
+function aW(v){if(!v||!v.length)return[];var w={},n=new Date(),o=new Date(n);o.setDate(o.getDate()-180);v.forEach(function(v){var p=new Date(v.snippet.publishedAt);if(p<o)return;var wk=fDt(gM(p));if(!w[wk])w[wk]={date:wk,views:0,likes:0,comments:0,videos:0};w[wk].videos++;if(v.statistics){w[wk].views+=parseInt(v.statistics.viewCount||0);w[wk].likes+=parseInt(v.statistics.likeCount||0);w[wk].comments+=parseInt(v.statistics.commentCount||0)}});return Object.values(w).sort(function(a,b){return a.date.localeCompare(b.date)})}
+function aM(v){if(!v||!v.length)return[];var m={},n=new Date(),o=new Date(n);o.setFullYear(o.getFullYear()-1);v.forEach(function(v){var p=new Date(v.snippet.publishedAt);if(p<o)return;var mk=p.getFullYear()+"-"+String(p.getMonth()+1).padStart(2,"0");if(!m[mk])m[mk]={month:mk,views:0,likes:0,comments:0,videos:0};m[mk].videos++;if(v.statistics){m[mk].views+=parseInt(v.statistics.viewCount||0);m[mk].likes+=parseInt(v.statistics.likeCount||0);m[mk].comments+=parseInt(v.statistics.commentCount||0)}});return Object.values(m).sort(function(a,b){return a.month.localeCompare(b.month)})}
+async function fOv(){if(state.channels.length===0){document.getElementById("overviewContent").innerHTML='<div class="empty-state"><h4>还没有添加频道</h4><p>前往「设置」添加频道和 API Key。</p><button class="btn-accent mt-3" onclick="swT(\"tabSettings\")">前往设置</button></div>';return}document.getElementById("overviewContent").innerHTML='<div class="text-center py-5"><div class="loading-spinner"></div><p class="help-text mt-2">正在抓取频道数据...</p></div>';var promises=state.channels.map(async function(ch){var info=await fCS(ch.channelId);var videos=state.videosCache[ch.channelId]||[];var weekly=aW(videos),monthly=aM(videos);var n=new Date(),l7=new Date(n),l30=new Date(n);l7.setDate(l7.getDate()-7);l30.setDate(l30.getDate()-30);var v7=0,v30=0,todayVideos=0;var todayStart=new Date();todayStart.setHours(0,0,0,0);videos.forEach(function(v){var p=new Date(v.snippet.publishedAt),w=parseInt(v.statistics?.viewCount||0);if(p>=l7)v7+=w;if(p>=l30)v30+=w;if(p>=todayStart)todayVideos++});var analytics=null;if(state.accessToken){analytics=await fDb(ch.channelId)}return{channel:ch,info,videos,weekly,monthly,v7,v30,todayVideos,analytics}});var results=await Promise.all(promises);var html="";results.forEach(function(r){var s=r.info?.statistics||{};html+='<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:10px;">'+(r.channel.thumbnail?'<img src="'+r.channel.thumbnail+'" style="width:28px;height:28px;border-radius:50%;">':'')+'<span>'+r.channel.name+'</span>'+(r.channel.operator?'<span style="font-size:11px;color:var(--accent);margin-left:6px;font-weight:500;">\u8fd0\u8425\u4eba: '+r.channel.operator+'</span>':'')+'<span style="font-size:12px;color:var(--text-secondary);font-weight:400;">'+r.channel.channelId+'</span></div><div class="card-body"><div class="metric-grid">'+
+'<div class="metric-item"><div class="metric-value">'+fs(s.subscriberCount)+'</div><div class="metric-label">订阅者</div></div>'+
+'<div class="metric-item"><div class="metric-value">'+fs(s.viewCount)+'</div><div class="metric-label">总播放</div></div>'+
+'<div class="metric-item"><div class="metric-value">'+fs(s.videoCount)+'</div><div class="metric-label">视频数</div></div>'+
+'<div class="metric-item" style="border-color:'+(r.v7>0?"var(--green)":"var(--border)")+'"><div class="metric-value">'+fs(r.v7)+'</div><div class="metric-label">近7天新增播放</div></div>'+
+'<div class="metric-item" style="border-color:'+(r.v30>0?"var(--green)":"var(--border)")+'"><div class="metric-value">'+fs(r.v30)+'</div><div class="metric-label">近30天新增播放</div></div>'+
+'<div class="metric-item"><div class="metric-value">'+(r.weekly.length>0?r.weekly[r.weekly.length-1]?.videos||0:0)+'</div><div class="metric-label">最近一周发片</div></div>'+(function(){if(!r||r.todayVideos===undefined)return'';return '<div class="metric-item" style="border-color:'+(r.todayVideos>0?'var(--green)':'var(--border)')+'"><div class="metric-value">'+fm(r.todayVideos)+'</div><div class="metric-label">今日发片</div></div>'})()+'</div></div>';
+if(r.analytics&&r.analytics.rows){var rows=r.analytics.rows,cols=r.analytics.columnHeaders.map(function(h){return h.name}),ix=function(n){return cols.indexOf(n)};var tV=0,tM=0,tI=0,tC=0,cC=0,aD=0,dC=0,tR=0,tAR=0;rows.forEach(function(row){tV+=row[ix("views")]||0;tM+=row[ix("estimatedMinutesWatched")]||0;tI+=row[ix("impressions")]||0;tR+=row[ix("estimatedRevenue")]||0;tAR+=row[ix("estimatedAdRevenue")]||0;if(row[ix("impressionsCtr")]!=null){tC+=parseFloat(row[ix("impressionsCtr")]);cC++}if(row[ix("averageViewDuration")]!=null){aD+=parseFloat(row[ix("averageViewDuration")]);dC++}});if(tV>0)html+='<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;"><div class="metric-grid">'+
+'<div class="metric-item"><div class="metric-value">'+fm(tV)+'</div><div class="metric-label">30天播放</div></div>'+
+'<div class="metric-item"><div class="metric-value">'+fm(Math.round(tM))+'</div><div class="metric-label">30天观看时长(分)</div></div>'+
+'<div class="metric-item"><div class="metric-value">'+fd(dC>0?aD/dC:0)+'</div><div class="metric-label">平均观看时长</div></div>'+
+'<div class="metric-item"><div class="metric-value">'+(cC>0?(tC/cC*100).toFixed(2)+"%":"-")+'</div><div class="metric-label">点击率 CTR</div></div>'+
+'<div class="metric-item"><div class="metric-value">'+fm(tI)+'</div><div class="metric-label">展示次数</div></div>'
+'<div class="metric-item" style="border-color:#4caf50"><div class="metric-value">'+(tR>0?"¥"+tR.toFixed(2):"-")+'</div><div class="metric-label">预估营收</div></div>'
+'</div></div></div>'}
+html+="</div></div>"});var allW={};results.forEach(function(r){r.weekly.forEach(function(w){if(!allW[w.date])allW[w.date]={date:w.date,views:0,videos:0};allW[w.date].views+=w.views;allW[w.date].videos+=w.videos})});var sW=Object.values(allW).sort(function(a,b){return a.date.localeCompare(b.date)});if(sW.length>1)html+='<div class="card"><div class="card-header">总播放量趋势（周）</div><div class="card-body"><div class="chart-container"><canvas id="overviewChart"></canvas></div></div></div>';document.getElementById("overviewContent").innerHTML=html;if(sW.length>1&&document.getElementById("overviewChart"))rC("overviewChart",sW.slice(-12),"date",["views"],["播放量"],"bar")}
+
+async function fW(){if(state.channels.length===0){document.getElementById("weeklyContent").innerHTML='<div class="empty-state"><h4>请先添加频道</h4></div>';return}document.getElementById("weeklyContent").innerHTML='<div class="text-center py-5"><div class="loading-spinner"></div><p class="help-text mt-2">正在计算周数据...</p></div>';var nF=state.channels.filter(function(ch){return!state.videosCache[ch.channelId]||state.videosCache[ch.channelId].length===0});if(nF.length>0){for(var i=0;i<nF.length;i++)await fRV(nF[i].channelId,50)}await rWR()}
+async function rWR(){populateWeeklyFilter();var btn=document.querySelector("#weeklyRangeSelector .btn-range.active"),numW=parseInt(btn?.dataset?.weeks||4),wf=document.getElementById("weeklyChannelFilter")?.value||"all";var n=new Date(),s=new Date(n);s.setDate(s.getDate()-numW*7);var allRows=[];state.channels.forEach(function(ch){if(wf!=="all"&&ch.channelId!==wf)return;(state.videosCache[ch.channelId]||[]).forEach(function(v){var pub=new Date(v.snippet.publishedAt);if(pub<s)return;var wk=fDt(gM(pub)),vw=parseInt(v.statistics?.viewCount||0),lk=parseInt(v.statistics?.likeCount||0),cm=parseInt(v.statistics?.commentCount||0);allRows.push({channel:ch.name,date:wk,views:vw,likes:lk,comments:cm,videos:1})})});var agg={};allRows.forEach(function(r){if(!agg[r.date])agg[r.date]={date:r.date,views:0,videos:0,likes:0,comments:0};agg[r.date].views+=r.views;agg[r.date].videos+=r.videos;agg[r.date].likes+=r.likes;agg[r.date].comments+=r.comments});var sorted=Object.values(agg).sort(function(a,b){return a.date.localeCompare(b.date)});var html="";if(wf!=="all"){var selCh=state.channels.find(function(c){return c.channelId===wf});if(selCh)html+='<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px;">'+(selCh.thumbnail?'<img src="'+selCh.thumbnail+'" style="width:24px;height:24px;border-radius:50%;">':'')+'<span>'+selCh.name+'</span>'+(selCh.operator?'<span style="font-size:11px;color:var(--accent);margin-left:4px;">运营人: '+selCh.operator+'</span>':'')+'<span style="font-size:12px;color:var(--text-secondary);font-weight:400;margin-left:auto;">'+numW+'周数据报表</span></div></div>'}var tV=sorted.reduce(function(s,r){return s+r.views},0),tVid=sorted.reduce(function(s,r){return s+r.videos},0),aV=sorted.length>0?Math.round(tV/sorted.length):0;html+='<div class="metric-grid"><div class="metric-item"><div class="metric-value">'+fs(tV)+'</div><div class="metric-label">'+numW+'周总播放</div></div><div class="metric-item"><div class="metric-value">'+fm(tVid)+'</div><div class="metric-label">发片总数</div></div><div class="metric-item"><div class="metric-value">'+fs(aV)+'</div><div class="metric-label">周均播放</div></div><div class="metric-item"><div class="metric-value">'+(tV>0&&tVid>0?fs(Math.round(tV/tVid)):"-")+'</div><div class="metric-label">单视频平均播放</div></div></div>';if(sorted.length>0){html+='<div class="card"><div class="card-header">'+(wf!=="all"?state.channels.find(function(c){return c.channelId===wf})?.name||"":"")+(wf!=="all"?" - ":"")+'周数据明细</div><div class="card-body p-0"><table class="table table-sm mb-0"><thead><tr><th>周起始</th><th>播放量</th><th>发片数</th><th>点赞</th><th>评论</th><th>平均播放/视频</th></tr></thead><tbody>'+sorted.map(function(w){return'<tr><td>'+w.date+'</td><td><strong>'+fs(w.views)+'</strong></td><td>'+fm(w.videos)+'</td><td>'+fs(w.likes)+'</td><td>'+fm(w.comments)+'</td><td>'+(w.videos>0?fs(Math.round(w.views/w.videos)):"-")+'</td></tr>'}).join("")+'</tbody></table></div></div><div class="row"><div class="col-md-6"><div class="card"><div class="card-header">周播放量趋势</div><div class="card-body"><div class="chart-container"><canvas id="weeklyViewsChart"></canvas></div></div></div></div><div class="col-md-6"><div class="card"><div class="card-header">周发片数</div><div class="card-body"><div class="chart-container"><canvas id="weeklyVideosChart"></canvas></div></div></div></div></div>'}if(state.channels.length>1)html+='<div class="card"><div class="card-header">各频道周数据对比</div><div class="card-body"><div class="chart-container"><canvas id="weeklyChannelChart"></canvas></div></div></div>';document.getElementById("weeklyContent").innerHTML=html;if(sorted.length>0){if(document.getElementById("weeklyViewsChart"))rC("weeklyViewsChart",sorted,"date",["views"],["播放量"],"bar");if(document.getElementById("weeklyVideosChart"))rC("weeklyVideosChart",sorted,"date",["videos"],["发片数"],"line");if(document.getElementById("weeklyChannelChart"))rMC("weeklyChannelChart","weekly")}}
+async function fM(){if(state.channels.length===0){document.getElementById("monthlyContent").innerHTML='<div class="empty-state"><h4>请先添加频道</h4></div>';return}document.getElementById("monthlyContent").innerHTML='<div class="text-center py-5"><div class="loading-spinner"></div><p class="help-text mt-2">正在计算月数据...</p></div>';var nF=state.channels.filter(function(ch){return!state.videosCache[ch.channelId]||state.videosCache[ch.channelId].length===0});if(nF.length>0){for(var i=0;i<nF.length;i++)await fRV(nF[i].channelId,50)}await rMR()}
+async function rMR(){populateMonthlyFilter();var btn=document.querySelector("#monthlyRangeSelector .btn-range.active"),numM=parseInt(btn?.dataset?.months||3),wf=document.getElementById("monthlyChannelFilter")?.value||"all";var n=new Date(),s=new Date(n);s.setMonth(s.getMonth()-numM);var allRows=[];state.channels.forEach(function(ch){(state.videosCache[ch.channelId]||[]).forEach(function(v){var pub=new Date(v.snippet.publishedAt);if(pub<s)return;var mk=pub.getFullYear()+"-"+String(pub.getMonth()+1).padStart(2,"0"),vw=parseInt(v.statistics?.viewCount||0),lk=parseInt(v.statistics?.likeCount||0),cm=parseInt(v.statistics?.commentCount||0);allRows.push({channel:ch.name,month:mk,views:vw,likes:lk,comments:cm,videos:1})})});var agg={};allRows.forEach(function(r){if(!agg[r.month])agg[r.month]={month:r.month,views:0,videos:0,likes:0,comments:0};agg[r.month].views+=r.views;agg[r.month].videos+=r.videos;agg[r.month].likes+=r.likes;agg[r.month].comments+=r.comments});var sorted=Object.values(agg).sort(function(a,b){return a.month.localeCompare(b.month)});var html="";if(wf!=="all"){var selCh=state.channels.find(function(c){return c.channelId===wf});if(selCh)html+='<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:8px;">'+(selCh.thumbnail?'<img src="'+selCh.thumbnail+'" style="width:24px;height:24px;border-radius:50%;">':'')+'<span>'+selCh.name+'</span>'+(selCh.operator?'<span style="font-size:11px;color:var(--accent);margin-left:4px;">运营人: '+selCh.operator+'</span>':'')+'<span style="font-size:12px;color:var(--text-secondary);font-weight:400;margin-left:auto;">'+numM+'月数据报表</span></div></div>'}var tV=sorted.reduce(function(s,r){return s+r.views},0),tVid=sorted.reduce(function(s,r){return s+r.videos},0),aV=sorted.length>0?Math.round(tV/sorted.length):0;html+='<div class="metric-grid"><div class="metric-item"><div class="metric-value">'+fs(tV)+'</div><div class="metric-label">'+numM+'月总播放</div></div><div class="metric-item"><div class="metric-value">'+fm(tVid)+'</div><div class="metric-label">发片总数</div></div><div class="metric-item"><div class="metric-value">'+fs(aV)+'</div><div class="metric-label">月均播放</div></div><div class="metric-item"><div class="metric-value">'+(tV>0&&tVid>0?fs(Math.round(tV/tVid)):"-")+'</div><div class="metric-label">单视频平均播放</div></div></div>';if(sorted.length>0){html+='<div class="card"><div class="card-header">'+(wf!=="all"?state.channels.find(function(c){return c.channelId===wf})?.name||"":"")+(wf!=="all"?" - ":"")+'月数据明细</div><div class="card-body p-0"><table class="table table-sm mb-0"><thead><tr><th>月份</th><th>播放量</th><th>发片数</th><th>点赞</th><th>评论</th><th>平均播放/视频</th></tr></thead><tbody>'+sorted.map(function(m){return'<tr><td>'+m.month+'</td><td><strong>'+fs(m.views)+'</strong></td><td>'+fm(m.videos)+'</td><td>'+fs(m.likes)+'</td><td>'+fm(m.comments)+'</td><td>'+(m.videos>0?fs(Math.round(m.views/m.videos)):"-")+'</td></tr>'}).join("")+'</tbody></table></div></div><div class="row"><div class="col-md-6"><div class="card"><div class="card-header">月播放量趋势</div><div class="card-body"><div class="chart-container"><canvas id="monthlyViewsChart"></canvas></div></div></div></div><div class="col-md-6"><div class="card"><div class="card-header">月发片数</div><div class="card-body"><div class="chart-container"><canvas id="monthlyVideosChart"></canvas></div></div></div></div></div>'}if(state.channels.length>1)html+='<div class="card"><div class="card-header">各频道月数据对比</div><div class="card-body"><div class="chart-container"><canvas id="monthlyChannelChart"></canvas></div></div></div>';document.getElementById("monthlyContent").innerHTML=html;if(sorted.length>0){if(document.getElementById("monthlyViewsChart"))rC("monthlyViewsChart",sorted,"month",["views"],["播放量"],"bar");if(document.getElementById("monthlyVideosChart"))rC("monthlyVideosChart",sorted,"month",["videos"],["发片数"],"line");if(document.getElementById("monthlyChannelChart"))rMC("monthlyChannelChart","monthly")}}
+
+async function fAV(){if(state.channels.length===0){document.getElementById("videosContent").innerHTML='<div class="empty-state"><h4>请先添加频道</h4></div>';return}document.getElementById("videosContent").innerHTML='<div class="text-center py-5"><div class="loading-spinner"></div><p class="help-text mt-2">正在抓取视频数据...</p></div>';var f=document.getElementById("videoChannelFilter");var curVal=f.value;f.innerHTML='<option value="all">全部频道</option>'+state.channels.map(function(c){return'<option value="'+c.channelId+'">'+c.name+'</option>'}).join("");if(curVal!=="all")f.value=curVal;var fv=f.value;if(fv!=="all"){var ch=state.channels.find(function(c){return c.channelId===fv});if(ch&&(!state.videosCache[ch.channelId]||state.videosCache[ch.channelId].length<200))await fRV(ch.channelId,200)}else{for(var i=0;i<state.channels.length;i++){var ch=state.channels[i];if(!state.videosCache[ch.channelId]||state.videosCache[ch.channelId].length===0)await fRV(ch.channelId,50)}}rV()}
+function rV(){var fv=document.getElementById("videoChannelFilter").value,all=[];state.channels.forEach(function(ch){if(fv!=="all"&&ch.channelId!==fv)return;(state.videosCache[ch.channelId]||[]).forEach(function(v){var s=v.statistics||{};all.push({channelName:ch.name,title:v.snippet?.title||"",publishedAt:v.snippet?.publishedAt||"",viewCount:parseInt(s.viewCount||0),likeCount:parseInt(s.likeCount||0),commentCount:parseInt(s.commentCount||0),videoId:v.id})})});all.sort(function(a,b){return b.publishedAt.localeCompare(a.publishedAt)});if(all.length===0){document.getElementById("videosContent").innerHTML='<div class="empty-state"><h4>暂无视频数据</h4></div>';return}var selCh=fv!=="all"?state.channels.find(function(c){return c.channelId===fv}):null;var headerInfo="";if(selCh){var cached=state.videosCache[selCh.channelId]||[];headerInfo='<span style="font-size:12px;color:var(--text-secondary);font-weight:400;margin-left:8px;">'+selCh.name+(selCh.operator?" ("+selCh.operator+")":"")+' | 已缓存 '+cached.length+' 个视频</span>'}else{headerInfo='<span style="font-size:12px;color:var(--text-secondary);font-weight:400;margin-left:8px;">总播放: '+fs(all.reduce(function(s,v){return s+v.viewCount},0))+'</span>'}var html='<div class="card"><div class="card-header">共 '+all.length+' 个视频'+headerInfo+'</div><div class="card-body p-0" style="overflow-x:auto;"><table class="table table-sm mb-0" id="videoTable"><thead><tr><th onclick="sVT(0)">视频</th><th onclick="sVT(1)">频道</th><th onclick="sVT(2)">发布日期</th><th onclick="sVT(3)" class="text-end">播放量</th><th onclick="sVT(4)" class="text-end">点赞</th><th onclick="sVT(5)" class="text-end">评论</th><th onclick="sVT(6)" class="text-end">点赞率</th></tr></thead><tbody>'+all.map(function(v){var lr=v.viewCount>0?(v.likeCount/v.viewCount*100).toFixed(1)+"%":"-";return'<tr><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="https://youtube.com/watch?v='+v.videoId+'" target="_blank" style="color:var(--text-primary);text-decoration:none;">'+v.title+'</a></td><td>'+v.channelName+'</td><td style="white-space:nowrap;">'+new Date(v.publishedAt).toLocaleDateString("zh-CN")+'</td><td class="text-end"><strong>'+fs(v.viewCount)+'</strong></td><td class="text-end">'+fm(v.likeCount)+'</td><td class="text-end">'+fm(v.commentCount)+'</td><td class="text-end">'+lr+'</td></tr>'}).join("")+'</tbody></table></div></div>';document.getElementById("videosContent").innerHTML=html}
+var vSC=-1,vSA=true;function sVT(c){if(vSC===c)vSA=!vSA;else{vSC=c;vSA=false}var tb=document.querySelector("#videoTable tbody");if(!tb)return;var rows=Array.from(tb.querySelectorAll("tr"));rows.sort(function(a,b){var ca=a.querySelectorAll("td"),cb=b.querySelectorAll("td"),va,vb;switch(c){case 3:va=parseInt(ca[3]?.textContent.replace(/[^0-9]/g,"")||"0");vb=parseInt(cb[3]?.textContent.replace(/[^0-9]/g,"")||"0");break;case 4:va=parseInt(ca[4]?.textContent.replace(/[^0-9]/g,"")||"0");vb=parseInt(cb[4]?.textContent.replace(/[^0-9]/g,"")||"0");break;case 5:va=parseInt(ca[5]?.textContent.replace(/[^0-9]/g,"")||"0");vb=parseInt(cb[5]?.textContent.replace(/[^0-9]/g,"")||"0");break;case 6:va=parseFloat(ca[6]?.textContent||"0");vb=parseFloat(cb[6]?.textContent||"0");break;case 2:va=ca[2]?.textContent||"";vb=cb[2]?.textContent||"";break;default:va=ca[c]?.textContent||"";vb=cb[c]?.textContent||""}return typeof va==="string"?vSA?va.localeCompare(vb):vb.localeCompare(va):vSA?va-vb:vb-va});rows.forEach(function(r){tb.appendChild(r)})}
+
+function rC(canvasId,data,lF,vF,vL,type){var ctx=document.getElementById(canvasId)?.getContext("2d");if(!ctx)return;if(state.charts[canvasId])state.charts[canvasId].destroy();var colors=["#ff4444","#3ea6ff","#4caf50","#ff9800","#9c27b0","#00bcd4"];var datasets=vF.map(function(f,i){return{label:vL[i]||f,data:data.map(function(d){return d[f]}),backgroundColor:type==="bar"?colors[i%colors.length]+"99":colors[i%colors.length],borderColor:colors[i%colors.length],borderWidth:2,tension:0.3,fill:type==="line"?false:undefined}});state.charts[canvasId]=new Chart(ctx,{type:type,data:{labels:data.map(function(d){return d[lF]}),datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#555",font:{size:11}}}},scales:{x:{ticks:{color:"#666",font:{size:10}},grid:{color:"rgba(0,0,0,0.04)"}},y:{beginAtZero:true,ticks:{color:"#666",font:{size:10},callback:function(v){return v>=10000?(v/10000).toFixed(0)+"万":v}},grid:{color:"rgba(0,0,0,0.06)"}}}}})}
+function rMC(canvasId,period){var ctx=document.getElementById(canvasId)?.getContext("2d");if(!ctx)return;if(state.charts[canvasId])state.charts[canvasId].destroy();var colors=["#ff4444","#3ea6ff","#4caf50","#ff9800","#9c27b0","#00bcd4","#e91e63","#795548"];var allLabels=new Set();state.channels.forEach(function(ch,i){var data=period==="monthly"?aM(state.videosCache[ch.channelId]||[]):aW(state.videosCache[ch.channelId]||[]);data.forEach(function(d){allLabels.add(period==="monthly"?d.month:d.date)})});var labels=Array.from(allLabels).sort();var datasets=state.channels.map(function(ch,i){var data=period==="monthly"?aM(state.videosCache[ch.channelId]||[]):aW(state.videosCache[ch.channelId]||[]);var map={};data.forEach(function(d){map[period==="monthly"?d.month:d.date]=d.views});return{label:ch.name,data:labels.map(function(l){return map[l]||0}),backgroundColor:colors[i%colors.length]+"99",borderColor:colors[i%colors.length],borderWidth:2,tension:0.3,fill:false}});state.charts[canvasId]=new Chart(ctx,{type:"line",data:{labels:labels,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#555",font:{size:10}}}},scales:{x:{ticks:{color:"#666",font:{size:9}},grid:{color:"rgba(0,0,0,0.04)"}},y:{beginAtZero:true,ticks:{color:"#666",font:{size:9},callback:function(v){return v>=10000?(v/10000).toFixed(0)+"万":v}},grid:{color:"rgba(0,0,0,0.06)"}}}}})}
+function eCSV(type){var rows=[],headers=[];if(type==="weekly"){headers=["频道","周起始","播放量","发片数","点赞数","评论数"];state.channels.forEach(function(ch){aW(state.videosCache[ch.channelId]||[]).forEach(function(w){rows.push({频道:ch.name,周起始:w.date,播放量:w.views,发片数:w.videos,点赞数:w.likes,评论数:w.comments})})})}else if(type==="monthly"){headers=["频道","月份","播放量","发片数","点赞数","评论数"];state.channels.forEach(function(ch){aM(state.videosCache[ch.channelId]||[]).forEach(function(m){rows.push({频道:ch.name,月份:m.month,播放量:m.views,发片数:m.videos,点赞数:m.likes,评论数:m.comments})})})}else if(type==="videos"){headers=["频道","视频标题","发布时间","播放量","点赞数","评论数","点赞率"];state.channels.forEach(function(ch){(state.videosCache[ch.channelId]||[]).forEach(function(v){var s=v.statistics||{};rows.push({频道:ch.name,视频标题:v.snippet?.title||"",发布时间:v.snippet?.publishedAt||"",播放量:parseInt(s.viewCount||0),点赞数:parseInt(s.likeCount||0),评论数:parseInt(s.commentCount||0),点赞率:parseInt(s.viewCount||0)>0?(parseInt(s.likeCount||0)/parseInt(s.viewCount||0)*100).toFixed(1)+"%":"0%"})})})}if(rows.length===0){toast("没有数据可导出","error");return}var csv=headers.join(",")+"\n";rows.forEach(function(r){csv+=headers.map(function(h){return eC(r[h]||"")}).join(",")+"\n"});var blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8;"}),link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="youtube_"+type+"_"+fDt(new Date())+".csv";link.click();URL.revokeObjectURL(link.href);toast("CSV 导出成功","success")}
+function populateMonthlyFilter(){var sel=document.getElementById("monthlyChannelFilter");if(!sel)return;var cur=sel.value;sel.innerHTML='<option value="all">全部频道</option>'+state.channels.map(function(c){return'<option value="'+c.channelId+'">'+c.name+'</option>'}).join("");sel.value=cur;if(!cur||!Array.from(sel.options).find(function(o){return o.value===cur}))sel.value="all"}
+function populateWeeklyFilter(){var sel=document.getElementById("weeklyChannelFilter");if(!sel)return;var cur=sel.value;sel.innerHTML='<option value="all">全部频道</option>'+state.channels.map(function(c){return'<option value="'+c.channelId+'">'+c.name+'</option>'}).join("");sel.value=cur;if(!cur||!Array.from(sel.options).find(function(o){return o.value===cur}))sel.value="all"}
+function cAD(){if(!confirm("确定清除所有数据？"))return;localStorage.removeItem("ytD");state={apiKey:"",oauthClientId:"701921239457-ei4lt168afq00kpq5f1jjo43e3gauoeq.apps.googleusercontent.com",channels:[],videosCache:{},weeklyData:{},monthlyData:{},analyticsData:{},tokenClient:null,accessToken:"",charts:{}};document.getElementById("apiKeyInput").value="";document.getElementById("oauthClientIdInput").value="";rCh();uH();document.getElementById("overviewContent").innerHTML='<div class="empty-state"><h4>数据已清除</h4><p>请前往「设置」重新配置。</p></div>';document.getElementById("weeklyContent").innerHTML="";document.getElementById("monthlyContent").innerHTML="";document.getElementById("videosContent").innerHTML="";toast("数据已清除","info")}
+
+// --- Daily Update Functions ---
+function aD(v){if(!v||!v.length)return[];var d={};v.forEach(function(v){var p=new Date(v.snippet.publishedAt);var ds=fDt(p);if(!d[ds])d[ds]={date:ds,videos:0,views:0,likes:0,comments:0};d[ds].videos++;if(v.statistics){d[ds].views+=parseInt(v.statistics.viewCount||0);d[ds].likes+=parseInt(v.statistics.likeCount||0);d[ds].comments+=parseInt(v.statistics.commentCount||0)}});return Object.values(d).sort(function(a,b){return a.date.localeCompare(b.date)})}
+
+function calcFreq(v){if(!v||v.length<2)return{avgGap:"-",dow:[0,0,0,0,0,0,0],total:0};var dates=v.map(function(v){return new Date(v.snippet.publishedAt)}).sort(function(a,b){return a-b});var gaps=[];for(var i=1;i<dates.length;i++){gaps.push(Math.round((dates[i]-dates[i-1])/86400000))}var avg=gaps.length>0?Math.round(gaps.reduce(function(s,g){return s+g},0)/gaps.length):"-";var dow=[0,0,0,0,0,0,0];dates.forEach(function(d){dow[d.getDay()]++});var maxDow=Math.max.apply(null,dow);var bestDay=dow.indexOf(maxDow);var dayNames=["日","一","二","三","四","五","六"];return{avgGap:avg,dow:dow,total:dates.length,bestDay:dayNames[bestDay],bestDayIdx:bestDay,gaps:gaps}}
+
+async function fD(){if(state.channels.length===0){document.getElementById("dailyContent").innerHTML='<div class="empty-state"><h4>请先添加频道</h4></div>';return}document.getElementById("dailyContent").innerHTML='<div class="text-center py-5"><div class="loading-spinner"></div><p class="help-text mt-2">正在计算每日数据...</p></div>';var nF=state.channels.filter(function(ch){return!state.videosCache[ch.channelId]||state.videosCache[ch.channelId].length===0});if(nF.length>0){for(var i=0;i<nF.length;i++)await fRV(nF[i].channelId,50)}await rDR()}
+
+async function rDR(){var btn=document.querySelector("#dailyRangeSelector .btn-range.active"),numD=parseInt(btn?.dataset?.days||7);var n=new Date(),s=new Date(n);s.setDate(s.getDate()-numD);var allRows=[],chData={};state.channels.forEach(function(ch){var chDaily=aD(state.videosCache[ch.channelId]||[]);chData[ch.channelId]={name:ch.name,thumbnail:ch.thumbnail,data:[],map:{}};chDaily.forEach(function(d){if(new Date(d.date)>=s){chData[ch.channelId].data.push(d);chData[ch.channelId].map[d.date]=d;allRows.push({channel:ch.name,date:d.date,videos:d.videos,views:d.views,likes:d.likes,comments:d.comments})}});var freq=calcFreq(state.videosCache[ch.channelId]||[]);chData[ch.channelId].freq=freq});var allDates=new Set();allRows.forEach(function(r){allDates.add(r.date)});var sortedDates=Array.from(allDates).sort();var html="";state.channels.forEach(function(ch){var cd=chData[ch.channelId];if(!cd||!cd.freq)return;var f=cd.freq;var totalVids=cd.data.reduce(function(s,d){return s+d.videos},0);var activeDays=cd.data.filter(function(d){return d.videos>0}).length;html+='<div class="card"><div class="card-header" style="display:flex;align-items:center;gap:10px;">'+(ch.thumbnail?'<img src="'+ch.thumbnail+'" style="width:24px;height:24px;border-radius:50%;">':'')+'<span>'+ch.name+'</span><span style="font-size:12px;color:var(--text-secondary);font-weight:400;">'+(ch.operator?"运营人: "+ch.operator+" | ":"")+'更新频率分析</span></div><div class="card-body"><div class="freq-grid"><div class="freq-item"><div class="freq-val">'+fm(totalVids)+'</div><div class="freq-lbl">'+numD+'天发片</div></div><div class="freq-item"><div class="freq-val">'+(f.avgGap!="-"?fm(f.avgGap):"-")+'</div><div class="freq-lbl">平均间隔(天)</div></div><div class="freq-item"><div class="freq-val">'+fm(activeDays)+'</div><div class="freq-lbl">活跃天数</div></div><div class="freq-item"><div class="freq-val">'+(function(){if(totalVids===0)return"-";return (totalVids/numD*7).toFixed(1)})()+'</div><div class="freq-lbl">周均发片</div></div></div><div class="dow-bar">'+(function(){var dayNames=["日","一","二","三","四","五","六"];var maxD=Math.max.apply(null,f.dow)||1;return dayNames.map(function(dn,idx){var pct=Math.round(f.dow[idx]/maxD*100);return'<div class="dow-item"><div class="dow-fill'+(f.bestDayIdx===idx?' active':'')+'" style="width:'+pct+'%"></div>'+dn+'<br>'+fm(f.dow[idx])+'</div>'}).join("")})()+'</div><div class="help-text mt-2">最活跃: 星期'+f.bestDay+' | 共分析 '+f.total+' 个视频</div></div></div>'});html+='<div class="card"><div class="card-header">每日发片趋势</div><div class="card-body"><div class="chart-container"><canvas id="dailyChart"></canvas></div></div></div>';if(sortedDates.length>0){html+='<div class="card"><div class="card-header">每日发片明细</div><div class="card-body p-0" style="overflow-x:auto;"><table class="daily-table mb-0"><thead><tr><th>日期</th>'+state.channels.map(function(ch){return'<th>'+ch.name+(ch.operator?'<br><span style="font-size:10px;color:var(--text-secondary);font-weight:400">'+ch.operator+'</span>':'')+'</th>'}).join("")+'<th style="font-weight:600">合计</th></tr></thead><tbody>';var todayStr=fDt(new Date());sortedDates.forEach(function(ds){var isToday=ds===todayStr;html+='<tr><td'+(isToday?' style="font-weight:600;color:var(--accent)"':'')+'>'+(isToday?"今天 ":"")+ds+'</td>';var dayTotal=0;state.channels.forEach(function(ch){var d=chData[ch.channelId]?.map[ds];var cnt=d?d.videos:0;dayTotal+=cnt;html+='<td'+(cnt>0?' class="day-active"':'')+'>'+(cnt>0?fm(cnt):'-')+'</td>'});html+='<td style="font-weight:600">'+fm(dayTotal)+'</td></tr>'});html+='</tbody></table></div></div>'}if(state.channels.length>1)html+='<div class="card"><div class="card-header">各频道每日发片对比</div><div class="card-body"><div class="chart-container"><canvas id="dailyChannelChart"></canvas></div></div></div>';document.getElementById("dailyContent").innerHTML=html;if(sortedDates.length>0&&document.getElementById("dailyChart")){var ctx=document.getElementById("dailyChart")?.getContext("2d");if(ctx){if(state.charts["dailyChart"])state.charts["dailyChart"].destroy();var colors=["#ff4444","#3ea6ff","#4caf50","#ff9800","#9c27b0","#00bcd4"];var datasets=state.channels.map(function(ch,i){return{label:ch.name+(ch.operator?" ("+ch.operator+")":""),data:sortedDates.map(function(ds){var d=chData[ch.channelId]?.map[ds];return d?d.videos:0}),backgroundColor:colors[i%colors.length]+"99",borderColor:colors[i%colors.length],borderWidth:2,tension:0.3,fill:false}});state.charts["dailyChart"]=new Chart(ctx,{type:"line",data:{labels:sortedDates,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#555",font:{size:11}}}},scales:{x:{ticks:{color:"#666",font:{size:10}},grid:{color:"rgba(0,0,0,0.04)"}},y:{beginAtZero:true,ticks:{color:"#666",font:{size:10}},grid:{color:"rgba(0,0,0,0.06)"}}}}})}}if(document.getElementById("dailyChannelChart"))rDC("dailyChannelChart")}
+
+function rDC(canvasId){var ctx=document.getElementById(canvasId)?.getContext("2d");if(!ctx)return;if(state.charts[canvasId])state.charts[canvasId].destroy();var btn=document.querySelector("#dailyRangeSelector .btn-range.active"),numD=parseInt(btn?.dataset?.days||7);var n=new Date(),s=new Date(n);s.setDate(s.getDate()-numD);var colors=["#ff4444","#3ea6ff","#4caf50","#ff9800","#9c27b0","#00bcd4","#e91e63","#795548"];var allLabels=new Set();state.channels.forEach(function(ch,i){var daily=aD(state.videosCache[ch.channelId]||[]).filter(function(d){return new Date(d.date)>=s});daily.forEach(function(d){allLabels.add(d.date)})});var labels=Array.from(allLabels).sort();var datasets=state.channels.map(function(ch,i){var daily=aD(state.videosCache[ch.channelId]||[]).filter(function(d){return new Date(d.date)>=s});var m={};daily.forEach(function(x){m[x.date]=x.videos});return{label:ch.name+(ch.operator?" ("+ch.operator+")":""),data:labels.map(function(l){return m[l]||0}),backgroundColor:colors[i%colors.length]+"99",borderColor:colors[i%colors.length],borderWidth:2,tension:0.3,fill:false,type:"bar"}});state.charts[canvasId]=new Chart(ctx,{type:"bar",data:{labels:labels,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:"#555",font:{size:10}}}},scales:{x:{ticks:{color:"#666",font:{size:9}},grid:{color:"rgba(0,0,0,0.04)"}},y:{beginAtZero:true,ticks:{color:"#666",font:{size:9}},grid:{color:"rgba(0,0,0,0.06)"}}}}})}
+// --- End Daily Update Functions ---
+
+// --- All Videos Functions ---
+async function loadAllVideos(){var fv=document.getElementById("videoChannelFilter").value;if(fv==="all"){toast("请先选择具体频道","error");return}var ch=state.channels.find(function(c){return c.channelId===fv});if(!ch){toast("频道未找到","error");return}var p=document.getElementById("loadAllProgress");var btn=document.getElementById("loadAllVideosBtn");p.style.display="inline";btn.disabled=true;p.textContent="正在加载全部视频...（每次最多500个）";toast("开始加载 "+ch.name+" 的全部视频...","info");await fRV(fv,500);p.textContent="加载完成！共 "+state.videosCache[fv]?.length+" 个视频";btn.disabled=false;setTimeout(function(){p.style.display="none"},3000);rV()}
+
+// Update rV to show channel info in header and support "select single channel" mode
+// Original rV is overridden below
+
+// --- End All Videos Functions ---
+
+document.addEventListener("DOMContentLoaded",function(){
+
+
+  document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function(btn){btn.addEventListener("shown.bs.tab",function(e){var t=e.target.getAttribute("data-bs-target");if(t==="#tabOverview")fOv();else if(t==="#tabWeekly")fW();else if(t==="#tabMonthly")fM();else if(t==="#tabDaily")fD();else if(t==="#tabVideos")fAV()})});
+  document.querySelectorAll("#weeklyRangeSelector .btn-range").forEach(function(btn){btn.addEventListener("click",function(){document.querySelectorAll("#weeklyRangeSelector .btn-range").forEach(function(b){return b.classList.remove("active")});btn.classList.add("active");rWR()})});
+  document.querySelectorAll("#dailyRangeSelector .btn-range").forEach(function(btn){btn.addEventListener("click",function(){document.querySelectorAll("#dailyRangeSelector .btn-range").forEach(function(b){return b.classList.remove("active")});btn.classList.add("active");rDR()})});
+  document.querySelectorAll("#monthlyRangeSelector .btn-range").forEach(function(btn){btn.addEventListener("click",function(){document.querySelectorAll("#monthlyRangeSelector .btn-range").forEach(function(b){return b.classList.remove("active")});btn.classList.add("active");rMR()})});
+  document.getElementById("monthlyChannelFilter")?.addEventListener("change",function(){rMR()});
+  document.getElementById("videoChannelFilter")?.addEventListener("change",rV);
+  document.getElementById("weeklyChannelFilter")?.addEventListener("change",function(){populateWeeklyFilter();rWR()});
+  document.getElementById("monthlyChannelFilter")?.addEventListener("change",function(){populateMonthlyFilter();rMR()});
+  ldS();
+  document.getElementById("apiKeyInput").value=state.apiKey;
+  document.getElementById("oauthClientIdInput").value=state.oauthClientId;
+  rCh();uH();
+  if(state.oauthClientId)(function r(){if(typeof google!=="undefined"&&google.accounts){initOA(state.oauthClientId)}else setTimeout(r,500)})();
+  if(state.channels.length>0)setTimeout(function(){
+    if(state.tokenExpires&&Date.now()<state.tokenExpires)document.getElementById("oauthStatus").innerHTML='<span style="color:#4caf50">已通过 OAuth 认证（Token 已恢复）</span>';
+    if(!state.accessToken||state.accessToken===""){}
+    fOv()
+  },1000);
+  rOBv();chkSvr()});
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
